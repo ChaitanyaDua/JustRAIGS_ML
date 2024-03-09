@@ -1,0 +1,89 @@
+from PIL import Image
+from sklearn.model_selection import train_test_split
+from keras.metrics import Recall
+final_label=df['Final Label'].values
+images=[]
+labels=final_label
+glaucoma_pictures=os.listdir(path)
+for image in glaucoma_pictures:
+    image_path=path+image
+    if image_path == "C:/Users/Shobhit/Desktop/IIITacad/Sem6/ML_project/0/Thumbs.db" : continue
+    this_image=Image.open(image_path)
+    # this_image=cv2.imread(image_path)
+    # this_image = cv2.cvtColor(this_image, cv2.COLOR_BGR2GRAY)
+    this_image=this_image.resize((512,512))
+    array_img=np.array(this_image)/511
+    images.append(array_img)
+images=np.array(images)
+images_train,images_val,labels_train,labels_val=train_test_split(images,labels,test_size=0.2,stratify=labels)
+def augmentation(img):
+    img=img.reshape((1,)+img.shape)
+    image_augmenter=ImageDataGenerator(rotation_range=20,width_shift_range=0.3,height_shift_range=0.3,horizontal_flip=True,vertical_flip=True,fill_mode='nearest')
+    augmented_image=[]
+    for iter in image_augmenter.flow(img,batch_size=1):
+        augmented_image.append(iter[0])
+        if(len(augmented_image)>0):
+            break
+    augmented_image=np.array(augmented_image)
+    return augmented_image[0]
+
+minority_class_indices=[]
+minority_samples=0
+majority_samples=0
+for i in range(len(labels_train)):
+    if(labels_train[i]==1):
+        minority_class_indices.append(i)    
+        minority_samples+=1
+    else:
+        majority_samples+=1
+
+# Define data paths and target image size
+train_data_dir = "C:/Users/Shobhit/Desktop/IIITacad/Sem6/ML_project/0/"
+target_size = (512, 512)
+
+# Define augmentation parameters
+datagen = ImageDataGenerator(
+    rotation_range=20,  # Random rotation between 0 and 20 degrees
+    width_shift_range=0.2,  # Random horizontal shift up to 20% of image width
+    height_shift_range=0.2,  # Random vertical shift up to 20% of image height
+    shear_range=0.2,  # Random shear transformation
+    zoom_range=0.2,  # Random zoom between 80% and 120%
+    horizontal_flip=True  # Random horizontal flip
+)
+
+# Create training data generator with augmentation
+train_generator = datagen.flow_from_directory(
+    train_data_dir,
+    target_size=target_size,
+    batch_size=8,  # Adjust batch size based on your needs
+    class_mode="categorical"  # Adjust class mode based on your task (binary, categorical etc.)
+)
+
+# ct = 1
+# while True:
+#     print("augmenting data : ",ct)
+#     ct += 1
+#     if minority_samples==majority_samples:
+#         break
+#     random_minority_index=np.random.choice(minority_class_indices)
+#     aug_image=augmentation(images_train[random_minority_index])
+#     aug_image=np.array(aug_image)
+#     images_train=np.append(images_train, np.expand_dims(aug_image, axis=0), axis=0)
+#     labels_train=np.append(labels_train,1)
+#     minority_class_indices.append(images_train.shape[0]-1)
+#     minority_samples+=1
+
+
+print("Defining Model \n")
+model=Sequential()
+model.add(Conv2D(16,kernel_size=(10,10),activation='relu',input_shape=(512,512,1)))
+model.add(MaxPooling2D(pool_size=(3,3)))
+# model.add(Conv2D(32,kernel_size=(3,3),activation='relu'))
+# model.add(MaxPooling2D(pool_size=(2,2)))
+model.add(Flatten())
+model.add(Dense(16,activation='relu'))
+# model.add(Dense(16,activation='relu'))
+model.add(Dense(1,activation='sigmoid'))
+model.compile(loss='binary_crossentropy',metrics=['accuracy'],optimizer='adam')
+print("Training Model \n")
+model.fit(train_generator,images_train,labels_train,epochs=10,validation_data=(images_val,labels_val))
